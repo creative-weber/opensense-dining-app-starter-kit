@@ -1,0 +1,33 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cross-env ESBUILD_BINARY_PATH=../../node_modules/.pnpm/@esbuild+win32-x64@0.27.7/node_modules/@esbuild/win32-x64/esbuild.exe tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:migrate": "psql $DATABASE_URL -f src/db/schema.sql"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-validator": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.11.5",
+    "@types/qrcode": "^1.5.5",
+    "cross-env": "^10.1.0",
+    "tsx": "^4.9.3",
+    "typescript": "^5.4.5"
+  }
+}
