@@ -2,6 +2,11 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 const MenuPage = lazy(() => import('./pages/MenuPage'));
+const DemoPage = lazy(() => import('./pages/DemoPage'));
+const SupportPage = lazy(() => import('./pages/SupportPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
+const LicensePage = lazy(() => import('./pages/LicensePage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const OrderStatusPage = lazy(() => import('./pages/OrderStatusPage'));
 const ActiveOrdersPage = lazy(() => import('./pages/ActiveOrdersPage'));
@@ -27,6 +32,11 @@ export default function App() {
       <Suspense fallback={<RouteSkeleton />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/demo" element={<DemoPage />} />
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/license" element={<LicensePage />} />
           <Route path="/menu/:slug" element={<MenuPage />} />
           <Route path="/checkout/:slug" element={<CheckoutPage />} />
           <Route path="/order/:orderId" element={<OrderStatusPage />} />
