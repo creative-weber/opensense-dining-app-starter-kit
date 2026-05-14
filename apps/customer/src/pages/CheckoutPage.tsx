@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import useCartStore from '../store/cartStore';
 import { placeOrder } from '../api';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 
 const SS_PHONE = 'od_phone';
 const SS_NAME  = 'od_name';
+const SS_ACTIVE_ORDER_IDS = 'od_active_order_ids';
+const SS_CURRENT_ORDER_SLUG = 'od_current_order_slug';
 
 export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const { restaurantId, restaurantName, tableNumber, items, addItem, removeItem, clearCart, getSubtotal } = useCartStore();
+  const { restaurantId, restaurantName, tableId: cartTableId, tableNumber, items, addItem, removeItem, clearCart, getSubtotal } = useCartStore();
+  const tableId = searchParams.get('table') ?? cartTableId;
+  const tableQuery = tableId ? `?table=${encodeURIComponent(tableId)}` : '';
+  const menuPath = slug ? `/menu/${slug}${tableQuery}` : '/';
   const subtotal = getSubtotal();
 
   const [name, setName]   = useState(() => sessionStorage.getItem(SS_NAME)  ?? '');
@@ -23,8 +29,8 @@ export default function CheckoutPage() {
 
   // Redirect if cart is empty
   useEffect(() => {
-    if (items.length === 0) navigate(`/menu/${slug}`, { replace: true });
-  }, [items.length, navigate, slug]);
+    if (items.length === 0) navigate(menuPath, { replace: true });
+  }, [items.length, navigate, menuPath]);
 
   const validatePhone = (v: string) => {
     if (!v.trim()) return 'Phone number is required';
@@ -46,14 +52,26 @@ export default function CheckoutPage() {
     try {
       const { orderId } = await placeOrder({
         restaurantId,
-        tableId: useCartStore.getState().tableId ?? undefined,
+        tableId: tableId ?? undefined,
         customerName: name.trim(),
         customerPhone: phone.trim(),
         notes: notes.trim() || undefined,
         items: items.map((i) => ({ menuItemId: i.id, quantity: i.quantity })),
       });
+      const rawIds = sessionStorage.getItem(SS_ACTIVE_ORDER_IDS);
+      let activeIds: string[] = [];
+      if (rawIds) {
+        try {
+          activeIds = JSON.parse(rawIds) as string[];
+        } catch {
+          activeIds = [];
+        }
+      }
+      if (!activeIds.includes(orderId)) activeIds.unshift(orderId);
+      sessionStorage.setItem(SS_ACTIVE_ORDER_IDS, JSON.stringify(activeIds));
+      if (slug) sessionStorage.setItem(SS_CURRENT_ORDER_SLUG, slug);
       clearCart();
-      navigate(`/order/${orderId}`, { replace: true });
+      navigate(`/order/${orderId}${tableQuery}`, { replace: true });
     } catch (err: unknown) {
       const e = err as { data?: { message?: string } };
       setError(e.data?.message ?? 'Could not place order. Please try again.');
@@ -67,7 +85,7 @@ export default function CheckoutPage() {
       {/* Header */}
       <div className="bg-brand text-white px-4 pt-8 pb-6">
         <div className="max-w-lg mx-auto">
-          <button onClick={() => navigate(-1)} className="text-white/80 text-base mb-2 hover:text-white min-h-11">
+          <button onClick={() => navigate(menuPath)} className="text-white/80 text-base mb-2 hover:text-white min-h-11">
             ← Back to menu
           </button>
           <h1 className="text-xl font-bold">{restaurantName}</h1>
@@ -76,6 +94,14 @@ export default function CheckoutPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 mt-6 space-y-5">
+        <button
+          type="button"
+          onClick={() => navigate(menuPath)}
+          className="w-full min-h-11 rounded-xl border border-brand/30 bg-white px-4 py-2.5 text-base font-semibold text-brand hover:bg-brand/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          + Add More Items
+        </button>
+
         {/* Order summary */}
         <div className="bg-white rounded-2xl border border-border p-4">
           <h2 className="font-bold text-gray-900 mb-3">Your Order</h2>

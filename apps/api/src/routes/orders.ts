@@ -88,12 +88,12 @@ router.post(
       }
 
       // Create order
-      const orderResult = await client.query<{ id: string }>(
+      const orderResult = await client.query<{ id: string; created_at: string }>(
         `INSERT INTO orders (restaurant_id, table_id, customer_name, customer_phone, notes, subtotal)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
         [restaurantId, tableId ?? null, customerName, customerPhone, notes ?? null, subtotal.toFixed(2)]
       );
-      const orderId = orderResult.rows[0].id;
+      const { id: orderId, created_at: createdAt } = orderResult.rows[0];
 
       // Insert order items
       for (const item of items) {
@@ -107,16 +107,37 @@ router.post(
 
       await client.query('COMMIT');
 
+      let tableNumber: string | null = null;
+      if (tableId) {
+        const tableResult = await client.query<{ table_number: string }>(
+          `SELECT table_number FROM tables WHERE id = $1 AND restaurant_id = $2`,
+          [tableId, restaurantId]
+        );
+        tableNumber = tableResult.rows[0]?.table_number ?? null;
+      }
+
+      const sseItems = items.map((item) => {
+        const menuItem = itemMap.get(item.menuItemId)!;
+        return {
+          id: item.menuItemId,
+          name: menuItem.name,
+          price: Number(menuItem.price),
+          quantity: item.quantity,
+          notes: item.notes ?? null,
+        };
+      });
+
       // Notify connected admin & KDS clients
       broadcast(restaurantId, 'order_new', {
         id: orderId,
-        restaurantId,
+        customer_name: customerName,
+        customer_phone: customerPhone,
         status: 'pending',
         subtotal,
-        customerName,
-        customerPhone,
-        tableId: tableId ?? null,
-        createdAt: new Date().toISOString(),
+        notes: notes ?? null,
+        created_at: createdAt,
+        table_number: tableNumber,
+        items: sseItems,
       });
 
       res.status(201).json({ orderId, subtotal });

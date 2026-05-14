@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const OrderStatusPage = lazy(() => import('./pages/OrderStatusPage'));
+const ActiveOrdersPage = lazy(() => import('./pages/ActiveOrdersPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 
@@ -29,6 +30,8 @@ export default function App() {
           <Route path="/menu/:slug" element={<MenuPage />} />
           <Route path="/checkout/:slug" element={<CheckoutPage />} />
           <Route path="/order/:orderId" element={<OrderStatusPage />} />
+          <Route path="/orders" element={<ActiveOrdersPage />} />
+          <Route path="/orders/:orderId" element={<OrderStatusPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

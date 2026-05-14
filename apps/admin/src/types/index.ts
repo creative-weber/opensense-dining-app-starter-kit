@@ -53,6 +53,7 @@ export interface Order {
   notes: string | null;
   created_at: string;
   table_number: string | null;
+  items?: OrderItem[];
 }
 
 export interface DayHours {

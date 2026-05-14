@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchOrder } from '../api';
 import type { OrderResponse } from '../types';
 import { CheckCircle2, Clock, ChefHat, UtensilsCrossed, XCircle } from 'lucide-react';
@@ -24,7 +24,9 @@ const POLL_INTERVAL_MS = 10_000;
 const TERMINAL = new Set(['served', 'cancelled']);
 
 export default function OrderStatusPage() {
+  const navigate = useNavigate();
   const { orderId } = useParams<{ orderId: string }>();
+  const [searchParams] = useSearchParams();
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,10 @@ export default function OrderStatusPage() {
 
   const info = STATUS_MAP[order.status] ?? STATUS_MAP['pending'];
   const { Icon } = info;
+  const tableParam = searchParams.get('table');
+  const tableQuery = tableParam ? `?table=${encodeURIComponent(tableParam)}` : '';
+  const menuSlug = sessionStorage.getItem('od_current_order_slug');
+  const menuPath = menuSlug ? `/menu/${menuSlug}${tableQuery}` : '/';
 
   return (
     <div className="min-h-screen bg-surface-2 pb-10">
@@ -127,6 +133,23 @@ export default function OrderStatusPage() {
             <span>₹{order.subtotal.toFixed(0)}</span>
           </div>
           <p className="text-base text-muted mt-1">Pay at counter · Order #{order.id.slice(0, 8).toUpperCase()}</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(`/orders${tableQuery}`)}
+            className="w-full min-h-11 rounded-xl border border-brand/30 bg-white px-4 py-2.5 text-base font-semibold text-brand hover:bg-brand/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            Back To Orders
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(menuPath)}
+            className="w-full min-h-11 rounded-xl bg-brand px-4 py-2.5 text-base font-semibold text-white hover:bg-brand-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            Back To Menu
+          </button>
         </div>
 
         <p className="text-center text-base text-muted">Hi {order.customerName}, your order has been received.</p>

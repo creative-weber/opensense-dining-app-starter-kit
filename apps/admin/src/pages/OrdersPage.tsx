@@ -48,6 +48,11 @@ export default function OrdersPage() {
   // Live order updates via SSE
   useOrderStream(useCallback((type, order) => {
     if (type === 'order_new') {
+      // If an older API instance emits partial order data, reload to fetch full item details.
+      if (!order.items || !order.customer_name || !order.customer_phone || !order.created_at) {
+        void loadOrders();
+        return;
+      }
       setOrders((prev) => {
         // Only prepend if the current filter matches or is 'all'
         if (filter !== 'all' && filter !== order.status) return prev;
@@ -58,7 +63,7 @@ export default function OrdersPage() {
     } else {
       setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, ...order } : o));
     }
-  }, [filter]));
+  }, [filter, loadOrders]));
 
   const handleStatusChange = async (orderId: string, status: string) => {
     setUpdating(orderId);
@@ -132,6 +137,23 @@ export default function OrdersPage() {
               </div>
               <span className="font-bold text-gray-900 flex-shrink-0">₹{Number(order.subtotal).toFixed(0)}</span>
             </div>
+
+            {order.items && order.items.length > 0 && (
+              <div className="mb-3 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+                <p className="text-base font-medium text-gray-800 mb-1">Items</p>
+                <ul className="space-y-1">
+                  {order.items.map((item, idx) => (
+                    <li
+                      key={item.id ?? `${order.id}-${item.name}-${idx}`}
+                      className="text-base text-gray-700 flex items-start justify-between gap-3"
+                    >
+                      <span className="min-w-0">{item.quantity}x {item.name}</span>
+                      <span className="font-medium text-gray-900">₹{Number(item.price).toFixed(0)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {order.notes && (
               <p className="text-base text-muted italic mb-3 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5">

@@ -29,7 +29,11 @@ export default function DashboardPage() {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-border p-4">
+        <a
+          href="/orders"
+          className="bg-white rounded-2xl border border-border p-4 block hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-label="View pending orders"
+        >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
               <ClipboardList className="w-4 h-4 text-slate-600" aria-hidden="true" />
@@ -39,7 +43,7 @@ export default function DashboardPage() {
           <p className="text-3xl font-extrabold text-gray-900">
             {pendingCount === null ? '…' : pendingCount}
           </p>
-        </div>
+        </a>
         <div className="bg-white rounded-2xl border border-border p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 bg-brand/10 rounded-lg flex items-center justify-center">

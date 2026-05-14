@@ -7,6 +7,9 @@ import CartBar from '../components/CartBar';
 import type { MenuResponse, MenuCategory } from '../types';
 import { Search, X, UtensilsCrossed, Leaf } from 'lucide-react';
 
+const SS_ACTIVE_ORDER_IDS = 'od_active_order_ids';
+const SS_CURRENT_ORDER_SLUG = 'od_current_order_slug';
+
 export default function MenuPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -20,6 +23,17 @@ export default function MenuPage() {
   const [vegOnly, setVegOnly] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const hasActiveOrders = (() => {
+    const stored = sessionStorage.getItem(SS_ACTIVE_ORDER_IDS);
+    const orderSlug = sessionStorage.getItem(SS_CURRENT_ORDER_SLUG);
+    if (!stored || !slug || orderSlug !== slug) return false;
+    try {
+      const ids = JSON.parse(stored) as string[];
+      return Array.isArray(ids) && ids.length > 0;
+    } catch {
+      return false;
+    }
+  })();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { setRestaurant, setTable, restaurantSlug } = useCartStore();
@@ -68,7 +82,14 @@ export default function MenuPage() {
 
   const handleCheckout = () => {
     if (!slug) return;
-    navigate(`/checkout/${slug}`);
+    const tableQuery = tableId ? `?table=${encodeURIComponent(tableId)}` : '';
+    navigate(`/checkout/${slug}${tableQuery}`);
+  };
+
+  const handleViewCurrentOrders = () => {
+    if (!hasActiveOrders) return;
+    const tableQuery = tableId ? `?table=${encodeURIComponent(tableId)}` : '';
+    navigate(`/orders${tableQuery}`);
   };
 
   if (loading) {
@@ -123,6 +144,15 @@ export default function MenuPage() {
             <p className="text-white/80 text-base mt-1">
               Table {menu.table.table_number}
             </p>
+          )}
+          {hasActiveOrders && (
+            <button
+              type="button"
+              onClick={handleViewCurrentOrders}
+              className="mt-3 min-h-11 rounded-xl border border-white/40 bg-white/15 px-3 py-2 text-base font-semibold text-white hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              View Active Orders
+            </button>
           )}
         </div>
       </div>

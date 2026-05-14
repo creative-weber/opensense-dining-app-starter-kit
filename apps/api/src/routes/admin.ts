@@ -372,10 +372,27 @@ router.get('/orders', async (req: Request, res: Response, next: NextFunction): P
 
     const result = await query<OrderRecord>(
       `SELECT o.id, o.customer_name, o.customer_phone, o.status, o.subtotal,
-              o.notes, o.created_at, t.table_number
+              o.notes, o.created_at, t.table_number,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', oi.id,
+                    'name', oi.name,
+                    'price', oi.price,
+                    'quantity', oi.quantity,
+                    'notes', oi.notes
+                  )
+                  ORDER BY oi.created_at ASC
+                ) FILTER (WHERE oi.id IS NOT NULL),
+                '[]'::json
+              ) AS items
        FROM orders o
        LEFT JOIN tables t ON t.id = o.table_id
+       LEFT JOIN order_items oi ON oi.order_id = o.id
        WHERE o.restaurant_id = $1${statusClause}
+       GROUP BY
+         o.id, o.customer_name, o.customer_phone, o.status,
+         o.subtotal, o.notes, o.created_at, t.table_number
        ORDER BY o.created_at DESC
        LIMIT 100`,
       params
@@ -403,6 +420,45 @@ router.patch(
       }
       broadcast(req.auth!.restaurantId, 'order_updated', result.rows[0]);
       res.json(result.rows[0]);
+    } catch (err) { next(err); }
+  }
+);
+
+// ── Support tickets ──────────────────────────────────────────────────────────
+
+// POST /api/admin/support — submit a bug report or support ticket
+router.post(
+  '/support',
+  [
+    body('title').trim().notEmpty().isLength({ max: 200 }),
+    body('description').trim().notEmpty().isLength({ max: 2000 }),
+    body('category').isIn(['bug', 'feature', 'inquiry']),
+    body('restaurantName').optional().trim(),
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.status(400).json({ error: 'VALIDATION_ERROR', details: errors.array() }); return; }
+
+    const { title, description, category, restaurantName } = req.body as {
+      title: string;
+      description: string;
+      category: 'bug' | 'feature' | 'inquiry';
+      restaurantName?: string;
+    };
+
+    try {
+      const result = await query<{ id: string; created_at: string }>(
+        `INSERT INTO support_tickets (restaurant_id, admin_id, title, description, category, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING id, created_at`,
+        [req.auth!.restaurantId, req.auth!.adminId, title, description, category]
+      );
+
+      res.status(201).json({
+        id: result.rows[0].id,
+        message: 'Support ticket submitted successfully',
+        created_at: result.rows[0].created_at,
+      });
     } catch (err) { next(err); }
   }
 );

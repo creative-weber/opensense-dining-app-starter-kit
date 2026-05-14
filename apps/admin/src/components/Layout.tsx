@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import { LayoutDashboard, Utensils, Table2, ClipboardList, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Utensils, Table2, ClipboardList, Settings, LogOut, HelpCircle } from 'lucide-react';
+import SupportModal from './SupportModal';
 
 const NAV = [
   { to: '/dashboard', Icon: LayoutDashboard, label: 'Dashboard' },
@@ -12,6 +14,7 @@ const NAV = [
 
 export default function Layout() {
   const { restaurantName, clearAuth } = useAuthStore();
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-surface-2">
@@ -37,7 +40,14 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-1">
+          <button
+            onClick={() => setSupportModalOpen(true)}
+            className="flex items-center gap-2 text-base text-muted hover:text-blue-600 transition-colors px-3 py-2.5 w-full rounded-xl hover:bg-blue-50"
+          >
+            <HelpCircle className="w-4 h-4" aria-hidden="true" />
+            Support
+          </button>
           <button
             onClick={clearAuth}
             className="flex items-center gap-2 text-base text-muted hover:text-red-600 transition-colors px-3 py-2.5 w-full rounded-xl hover:bg-red-50"
@@ -64,6 +74,14 @@ export default function Layout() {
             {label}
           </NavLink>
         ))}
+        <button
+          onClick={() => setSupportModalOpen(true)}
+          className="flex-1 flex flex-col items-center py-2.5 text-base font-medium transition-colors text-muted hover:text-blue-600"
+          title="Support"
+        >
+          <HelpCircle className="w-5 h-5 mb-0.5" aria-hidden="true" />
+          Support
+        </button>
       </div>
 
       {/* Main content */}
@@ -72,6 +90,9 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Support Modal */}
+      <SupportModal isOpen={supportModalOpen} onClose={() => setSupportModalOpen(false)} />
     </div>
   );
 }

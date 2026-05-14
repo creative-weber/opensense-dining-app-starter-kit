@@ -100,7 +100,15 @@ export default function QRCard({ data, onClose }: QRCardProps) {
         <div className="px-4 pb-4 text-center border-t border-gray-100 pt-3">
           <p className="text-base font-semibold text-brand">Scan to Order</p>
           <p className="text-2xl font-extrabold text-gray-900">Table {data.tableNumber}</p>
-          <p className="text-base text-gray-400 mt-1 break-all">{data.menuUrl}</p>
+          <a
+            href={data.menuUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-block break-all text-base text-blue-700 underline underline-offset-2 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 rounded"
+            aria-label={`Open menu link for table ${data.tableNumber}`}
+          >
+            {data.menuUrl}
+          </a>
         </div>
 
         {/* Actions */}
