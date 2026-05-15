@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../api';
 import { handleApiError } from '../utils/errorHandler';
 import type { Order } from '../types';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, MessageCircle, MessageSquare, CheckCircle } from 'lucide-react';
 import { useOrderStream } from '../hooks/useOrderStream';
 
 const STATUS_OPTIONS = ['confirmed', 'preparing', 'ready', 'served', 'cancelled'] as const;
@@ -22,17 +22,41 @@ const STATUS_COLORS: Record<string, string> = {
   served:    'bg-gray-100 text-gray-600',
   cancelled: 'bg-red-100 text-red-700',
 };
+
 const FILTER_TABS = ['all', 'pending', 'confirmed', 'preparing', 'ready', 'served', 'cancelled'];
+
+function getTodayISO() {
+  const now = new Date();
+  return now.toISOString().slice(0, 10);
+}
+
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [sendingBill, setSendingBill] = useState<{ id: string; channel: 'whatsapp' | 'sms' } | null>(null);
+  const [billSentIds, setBillSentIds] = useState<Set<string>>(() => new Set());
+  const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
+  const [fromDate, setFromDate] = useState(getTodayISO());
+  const [toDate, setToDate] = useState(getTodayISO());
+
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
-    const url = filter === 'all' ? '/admin/orders' : `/admin/orders?status=${filter}`;
+    const params = new URLSearchParams();
+    if (filter !== 'all') params.append('status', filter);
+    if (dateMode === 'single') {
+      if (fromDate) {
+        params.append('from', fromDate);
+        params.append('to', fromDate);
+      }
+    } else {
+      if (fromDate) params.append('from', fromDate);
+      if (toDate) params.append('to', toDate);
+    }
+    const url = `/admin/orders${params.toString() ? '?' + params.toString() : ''}`;
     try {
       const { data } = await api.get<Order[]>(url);
       setOrders(data);
@@ -41,7 +65,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, fromDate, toDate, dateMode]);
 
   useEffect(() => { void loadOrders(); }, [loadOrders]);
 
@@ -77,8 +101,25 @@ export default function OrdersPage() {
     }
   };
 
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const handleSendBill = async (orderId: string, channel: 'whatsapp' | 'sms') => {
+    setSendingBill({ id: orderId, channel });
+    try {
+      await api.post(`/admin/orders/${orderId}/send-bill`, { channel });
+      setBillSentIds((prev) => new Set([...prev, orderId]));
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, whatsapp_sent: true } : o));
+    } catch (err: unknown) {
+      handleApiError(err, { operation: `send bill via ${channel}`, page: 'OrdersPage' });
+    } finally {
+      setSendingBill(null);
+    }
+  };
+
+
+  const formatDateTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) +
+      ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="space-y-6">
@@ -88,6 +129,50 @@ export default function OrdersPage() {
           className="flex items-center gap-1.5 text-base text-muted hover:text-brand transition-colors px-3 py-2.5 rounded-xl hover:bg-brand/5">
           <RefreshCw className="w-4 h-4" aria-hidden="true" /> Refresh
         </button>
+      </div>
+
+      {/* Date filters */}
+      <div className="flex flex-wrap gap-3 items-center mb-2">
+        <label className="text-base text-gray-700 font-medium flex items-center gap-2">
+          <span>Date mode:</span>
+          <select
+            value={dateMode}
+            onChange={e => {
+              const mode = e.target.value as 'single' | 'range';
+              setDateMode(mode);
+              if (mode === 'single') setToDate(fromDate); // sync toDate to fromDate
+            }}
+            className="border border-border rounded px-2 py-1 text-base"
+          >
+            <option value="single">Single</option>
+            <option value="range">Range</option>
+          </select>
+        </label>
+        <label className="text-base text-gray-700 font-medium flex items-center gap-2">
+          {dateMode === 'single' ? 'Date:' : 'From:'}
+          <input
+            type="date"
+            value={fromDate}
+            max={dateMode === 'range' ? toDate : undefined}
+            onChange={e => {
+              setFromDate(e.target.value);
+              if (dateMode === 'single') setToDate(e.target.value);
+            }}
+            className="border border-border rounded px-2 py-1 text-base"
+          />
+        </label>
+        {dateMode === 'range' && (
+          <label className="text-base text-gray-700 font-medium flex items-center gap-2">
+            To:
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate}
+              onChange={e => setToDate(e.target.value)}
+              className="border border-border rounded px-2 py-1 text-base"
+            />
+          </label>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -132,7 +217,7 @@ export default function OrdersPage() {
                   </span>
                 </div>
                 <p className="text-base text-muted mt-0.5">
-                  {order.customer_name} · {order.customer_phone} · {formatTime(order.created_at)}
+                  {order.customer_name} · {order.customer_phone} · {formatDateTime(order.created_at)}
                 </p>
               </div>
               <span className="font-bold text-gray-900 flex-shrink-0">₹{Number(order.subtotal).toFixed(0)}</span>
@@ -159,6 +244,39 @@ export default function OrdersPage() {
               <p className="text-base text-muted italic mb-3 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5">
                 Note: {order.notes}
               </p>
+            )}
+
+            {/* Send Bill CTAs */}
+            {!['cancelled'].includes(order.status) && (
+              <div className="flex gap-2 flex-wrap mb-3">
+                {(order.whatsapp_sent || billSentIds.has(order.id)) ? (
+                  <span className="inline-flex items-center gap-1.5 text-base font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                    <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                    Bill sent
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => void handleSendBill(order.id, 'whatsapp')}
+                      disabled={sendingBill?.id === order.id}
+                      aria-label={`Send bill via WhatsApp to ${order.customer_name}`}
+                      className="inline-flex items-center gap-2 text-base font-semibold px-4 min-h-11 rounded-lg border border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                    >
+                      <MessageCircle className="w-4 h-4" aria-hidden="true" />
+                      {sendingBill?.id === order.id && sendingBill.channel === 'whatsapp' ? 'Sending…' : 'Send Bill on WhatsApp'}
+                    </button>
+                    <button
+                      onClick={() => void handleSendBill(order.id, 'sms')}
+                      disabled={sendingBill?.id === order.id}
+                      aria-label={`Send bill via SMS to ${order.customer_name}`}
+                      className="inline-flex items-center gap-2 text-base font-semibold px-4 min-h-11 rounded-lg border border-gray-400 text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-40"
+                    >
+                      <MessageSquare className="w-4 h-4" aria-hidden="true" />
+                      {sendingBill?.id === order.id && sendingBill.channel === 'sms' ? 'Sending…' : 'Send Bill via SMS'}
+                    </button>
+                  </>
+                )}
+              </div>
             )}
 
             {/* Status action buttons */}

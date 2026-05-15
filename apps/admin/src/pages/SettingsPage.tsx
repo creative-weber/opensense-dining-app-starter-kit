@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api';
 import useAuthStore from '../store/authStore';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import type { RestaurantSettings, OpenHours, DayHours } from '../types';
-import { Save } from 'lucide-react';
+import { ExternalLink, Save } from 'lucide-react';
 
 const DAYS: { key: keyof OpenHours; label: string }[] = [
   { key: 'mon', label: 'Monday' },
@@ -26,7 +27,7 @@ function makeDefaultHours(): OpenHours {
 }
 
 export default function SettingsPage() {
-  const { setAuth, token, restaurantId } = useAuthStore();
+  const { setAuth, token, restaurantId, slug } = useAuthStore();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,6 +43,10 @@ export default function SettingsPage() {
   const [kdsPin, setKdsPin] = useState('');
   const [openHours, setOpenHours] = useState<OpenHours>(makeDefaultHours());
   const [dailySummaryEnabled, setDailySummaryEnabled] = useState(false);
+
+  const kdsPath = slug
+    ? `/kitchen/${slug}${restaurantId ? `?rid=${encodeURIComponent(restaurantId)}` : ''}`
+    : null;
 
   useEffect(() => {
     api.get<RestaurantSettings>('/admin/restaurant')
@@ -217,6 +222,21 @@ export default function SettingsPage() {
               pattern="[0-9]{4,6}"
               className="w-36 border border-border rounded-xl px-3 py-2.5 text-base font-mono
                          focus:outline-none focus:ring-2 focus:ring-brand" />
+          </div>
+          <div className="pt-1">
+            {kdsPath ? (
+              <Link
+                to={kdsPath}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 min-h-11 rounded-xl border border-border bg-gray-50 px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Open Kitchen Display
+                <ExternalLink className="w-4 h-4" aria-hidden="true" />
+              </Link>
+            ) : (
+              <p className="text-base text-muted">Save settings once so your Kitchen Display URL can be generated.</p>
+            )}
           </div>
         </section>
 

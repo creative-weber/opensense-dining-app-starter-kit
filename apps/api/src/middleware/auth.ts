@@ -34,8 +34,21 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
   try {
-    const decoded = jwt.verify(rawToken, JWT_SECRET) as AuthPayload;
-    req.auth = decoded;
+    const decoded = jwt.verify(rawToken, JWT_SECRET) as Partial<AuthPayload>;
+    if (
+      typeof decoded.adminId !== 'string'
+      || typeof decoded.restaurantId !== 'string'
+      || typeof decoded.email !== 'string'
+    ) {
+      res.status(401).json({ error: 'INVALID_TOKEN' });
+      return;
+    }
+
+    req.auth = {
+      adminId: decoded.adminId,
+      restaurantId: decoded.restaurantId,
+      email: decoded.email,
+    };
     next();
   } catch {
     res.status(401).json({ error: 'INVALID_TOKEN' });

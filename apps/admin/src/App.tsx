@@ -12,6 +12,7 @@ const MenuPage = lazy(() => import('./pages/MenuPage'));
 const TablesPage = lazy(() => import('./pages/TablesPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const KDSPage = lazy(() => import('./pages/KDSPage'));
 
 function RouteSkeleton() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/kitchen/:restaurantSlug" element={<KDSPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<DashboardPage />} />

@@ -150,6 +150,9 @@ Recommendation:
 - Checkout with name, phone, and optional notes
 - Order status page with auto-refresh (pay at counter)
 
+### Kitchen Display System (KDS)
+- Workflow and implementation plan: [KDS_WORKFLOW.md](./KDS_WORKFLOW.md)
+
 ### API (`apps/api`)
 - `POST /api/auth/register` — create restaurant + admin account
 - `POST /api/auth/login` — get JWT token

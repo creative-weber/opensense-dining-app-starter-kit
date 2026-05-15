@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { query } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { addAdminClient, broadcast } from '../services/sseManager';
+import { sendBillOnWhatsApp } from '../services/whatsapp';
 import type { MenuCategoryRow, MenuItemRow, OrderRecord, RestaurantRow } from '../types/shared';
 
 const router = Router();
@@ -364,11 +365,29 @@ router.get('/orders/stream', (req: Request, res: Response): void => {
 
 // GET /api/admin/orders?status=pending
 router.get('/orders', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const { status } = req.query as { status?: string };
+  const { status, from, to } = req.query as { status?: string; from?: string; to?: string };
   try {
     const params: unknown[] = [req.auth!.restaurantId];
-    const statusClause = status ? ` AND o.status = $2` : '';
-    if (status) params.push(status);
+    let clause = '';
+    let paramIdx = 2;
+    if (status) {
+      clause += ` AND o.status = $${paramIdx++}`;
+      params.push(status);
+    }
+    // If from and to are the same, use DATE(o.created_at) = $date
+    if (from && to && from === to) {
+      clause += ` AND DATE(o.created_at) = $${paramIdx++}`;
+      params.push(from);
+    } else {
+      if (from) {
+        clause += ` AND o.created_at >= $${paramIdx++}`;
+        params.push(from + 'T00:00:00.000Z');
+      }
+      if (to) {
+        clause += ` AND o.created_at <= $${paramIdx++}`;
+        params.push(to + 'T23:59:59.999Z');
+      }
+    }
 
     const result = await query<OrderRecord>(
       `SELECT o.id, o.customer_name, o.customer_phone, o.status, o.subtotal,
@@ -389,7 +408,7 @@ router.get('/orders', async (req: Request, res: Response, next: NextFunction): P
        FROM orders o
        LEFT JOIN tables t ON t.id = o.table_id
        LEFT JOIN order_items oi ON oi.order_id = o.id
-       WHERE o.restaurant_id = $1${statusClause}
+       WHERE o.restaurant_id = $1${clause}
        GROUP BY
          o.id, o.customer_name, o.customer_phone, o.status,
          o.subtotal, o.notes, o.created_at, t.table_number
@@ -418,8 +437,93 @@ router.patch(
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'ORDER_NOT_FOUND' }); return;
       }
+
       broadcast(req.auth!.restaurantId, 'order_updated', result.rows[0]);
       res.json(result.rows[0]);
+    } catch (err) { next(err); }
+  }
+);
+
+// POST /api/admin/orders/:orderId/send-bill — manually send bill via WhatsApp or SMS
+router.post(
+  '/orders/:orderId/send-bill',
+  [body('channel').isIn(['whatsapp', 'sms'])],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.status(400).json({ error: 'VALIDATION_ERROR', details: errors.array() }); return; }
+
+    const { orderId } = req.params;
+    const { channel } = req.body as { channel: 'whatsapp' | 'sms' };
+
+    try {
+      const orderResult = await query<{
+        id: string;
+        customer_phone: string;
+        customer_name: string | null;
+        subtotal: string;
+        tax: string;
+        restaurant_name: string;
+        table_number: string | null;
+      }>(
+        `SELECT o.id, o.customer_phone, o.customer_name, o.subtotal, o.tax,
+                r.name AS restaurant_name, t.table_number
+         FROM orders o
+         JOIN restaurants r ON r.id = o.restaurant_id
+         LEFT JOIN tables t ON t.id = o.table_id
+         WHERE o.id = $1 AND o.restaurant_id = $2`,
+        [orderId, req.auth!.restaurantId]
+      );
+
+      if (orderResult.rows.length === 0) {
+        res.status(404).json({ error: 'ORDER_NOT_FOUND' }); return;
+      }
+
+      const order = orderResult.rows[0];
+
+      if (!order.customer_phone) {
+        res.status(422).json({ error: 'NO_PHONE', message: 'Order has no customer phone number' }); return;
+      }
+
+      const itemsResult = await query<{ name: string; price: string; quantity: number }>(
+        `SELECT name, price, quantity FROM order_items WHERE order_id = $1 ORDER BY created_at ASC`,
+        [orderId]
+      );
+
+      const subtotal = Number(order.subtotal);
+      const tax = Number(order.tax);
+      const total = subtotal + tax;
+      const paymentBaseUrl = process.env.WHATSAPP_PAYMENT_URL_BASE?.trim();
+      const paymentLink = paymentBaseUrl ? `${paymentBaseUrl.replace(/\/$/, '')}/${orderId}` : null;
+
+      const sent = await sendBillOnWhatsApp({
+        phone: order.customer_phone,
+        customerName: order.customer_name,
+        orderId: order.id,
+        restaurantName: order.restaurant_name,
+        items: itemsResult.rows.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          subtotal: Number(item.price) * item.quantity,
+        })),
+        subtotal,
+        tax,
+        total,
+        tableNumber: order.table_number,
+        paymentLink,
+        channel,
+      });
+
+      if (!sent) {
+        res.status(503).json({ error: 'MESSAGING_NOT_CONFIGURED', message: 'Twilio credentials are not configured on this server' });
+        return;
+      }
+
+      await query(
+        `UPDATE orders SET whatsapp_sent = TRUE WHERE id = $1 AND restaurant_id = $2`,
+        [orderId, req.auth!.restaurantId]
+      );
+
+      res.json({ message: `Bill sent via ${channel}` });
     } catch (err) { next(err); }
   }
 );
